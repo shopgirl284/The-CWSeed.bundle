@@ -22,35 +22,32 @@ def MainMenu():
         try: thumb = item.xpath('.//img/@data-origsrc')[0]
         except: thumb = item.xpath('.//img/@src')[0]
 
-        # Whose line must be split into seasons first
-        if "Whose Line" in title:
-            oc.add(DirectoryObject(
-                key = Callback(SeedSeasons, url=show_url, title=title),
-                title = title, thumb = Resource.ContentsOfURLWithFallback(thumb)
-            ))
-        else:
-            oc.add(DirectoryObject(
-                key = Callback(SeedJSON, url=show_url, title=title),
-                title = title, thumb = Resource.ContentsOfURLWithFallback(thumb)
-            ))
+        oc.add(DirectoryObject(
+            key = Callback(SeedSeasons, url=show_url, title=title),
+            title = title, thumb = Resource.ContentsOfURLWithFallback(thumb)
+        ))
 
     return oc
 ####################################################################################################
-# Right now only Whose Line has seasons
+# Return seasons if listed by seasons or 
 @route('/video/thecwseed/seedseasons')
 def SeedSeasons(url, title):
 
     oc = ObjectContainer(title2=title)
-    html = HTML.ElementFromURL(CW_SEED)
+    html = HTML.ElementFromURL(url)
+    multi_seasons = html.xpath('//div[contains(@id, "seasons-menu2")]/ul/li/a')
 
-    for item in html.xpath('//div[@id="whoseline-seasons-menu"]/ul/li/a'):
-        url = CW_ROOT + item.xpath('./@href')[0]
-        title = item.xpath('.//text()')[0]
-        season = title.split()[1].strip()
-        oc.add(DirectoryObject(
-            key = Callback(SeedJSON, url=url, title=title, season=season),
-            title = title
-        ))
+    if multi_seasons:
+        for item in multi_seasons:
+            url = CW_SEED + item.xpath('./@href')[0]
+            seas_title = item.xpath('.//text()')[0]
+            season = int(url.split('?season=')[1].strip())
+            oc.add(DirectoryObject(
+                key = Callback(SeedJSON, url=url, title=seas_title, show_title=title, season=season),
+                title = seas_title
+            ))
+    else:
+        oc.add(DirectoryObject(key = Callback(SeedJSON, url=url, title="All Videos", show_title=title, season=0), title = "All Videos"))
 
     if len(oc) < 1:
         return ObjectContainer(header='Empty', message='There are currently no seasons for this show')
@@ -58,8 +55,8 @@ def SeedSeasons(url, title):
         return oc
 ####################################################################################################
 # Pull videos from the json data in the seed formatted video pages
-@route('/video/thecwseed/seedjson')
-def SeedJSON(url, title, season='0'):
+@route('/video/thecwseed/seedjson', season=int)
+def SeedJSON(url, title, season, show_title):
 
     oc = ObjectContainer(title2=title)
     content = HTTP.Request(url).content
@@ -72,42 +69,40 @@ def SeedJSON(url, title, season='0'):
 
     for video in json:
         video_url = CW_ROOT + json[video]['url']
+        try: duration = int(json[video]['dm'].replace('min', ''))
+        except: duration = 0
         # The guid number is used to pull images from the html
         try: video_thumb = html.xpath('//li[@data-videoguid="%s"]//img/@data-src' %video)[0]
         except: video_thumb = None
-        try: duration = int(json[video]['dm'].replace('min', ''))
-        except: duration = 0
-        show = json[video]['st'].strip()
         episode = json[video]['en'].replace('Ep.', '').strip()
-        if not episode:
-            episode = '0'
-        if len(episode)>3:
-            season_num = episode[0] + episode[1]
+        show = json[video]['st'].strip()
+        if episode.isdigit():
+            if len(str(season))>1:
+                season_num = int(episode[0] + episode[1])
+            else:
+                season_num = int(episode[0])
+            episode=int(episode)
         else:
-            season_num = episode[0]
-        # CLEAN OUT VIDEOS IN THE JSON INCLUDING OTHER SHOWS, OTHER SEASONS, OR CLIPS
-        # Remove clips
-        if duration < 5:
+            season_num = 0
+            episode = 0
+        # CLEAN OUT VIDEOS FOR OTHER SHOWS, CLIPS, OR OTHER SEASONS
+        # Skip videos for other shows
+        show_url = url.split('/shows/')[1].split('?')[0]
+        if show_url not in video_url:
             continue
-        duration = duration * 60000
-        # Make Terminator title match show field. Other titles with : do not have a leading space
-        if " : " in title:
-            title = title.replace(' : ', ': ')
-        # Whose Line json includes all season and other shows
-        if "Season" in title:
-            show_title = "Whose Line Is It Anyway?"
-            if season!=season_num or show!=show_title:
+        # Skip videos for other seasons
+        if season > 0:
+            if season!=season_num:
                 continue
-        else:
-            season = season_num
-            if show!=title:
-                continue
+        # Skip video clips (Some shows are only 3 minutes long)
+        if duration < 3:
+            continue
 
         oc.add(EpisodeObject(
             show = show,
-            season = int(season),
-            index = int(episode),
-            duration = duration,
+            season = season_num,
+            index = episode,
+            duration = duration * 60000,
             url = video_url,
             title = json[video]['eptitle'],
             summary = json[video]['d'],
