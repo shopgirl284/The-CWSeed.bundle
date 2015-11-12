@@ -1,6 +1,6 @@
 CW_SEED = 'http://www.cwseed.com'
 CW_ROOT = 'http://www.cwtv.com'
-ICON     = 'icon-default.png'
+ICON     = 'icon-default.jpg'
 
 RE_JSON = Regex('CWSEED.Site.video_data.videos = (.+)}};', Regex.DOTALL)
 ####################################################################################################
