@@ -1,19 +1,26 @@
 CW_SEED = 'http://www.cwseed.com'
 CW_ROOT = 'http://www.cwtv.com'
 ICON     = 'icon-default.jpg'
-
+PREF_DATA = 'data.json'
 RE_JSON = Regex('CWSEED.Site.video_data.videos = (.+)}};', Regex.DOTALL)
 ####################################################################################################
 def Start():
 
     ObjectContainer.title1 = 'The CW Seed'
     DirectoryObject.thumb = R(ICON)
+    
+    # This pulls in the json data for the episode order
+    if Dict['PrefData'] == None:
+        Dict['PrefData'] = LoadData()
+    else:
+        Log(Dict['PrefData'])
 
 ####################################################################################################
 @handler('/video/thecwseed', 'The CW Seed')
 def MainMenu():
     
     oc = ObjectContainer()
+    
     html = HTML.ElementFromURL(CW_SEED)
     for item in html.xpath('//div[@id="currentshows"]//a'):
         title = item.xpath('./p/text()')[0]
@@ -26,6 +33,11 @@ def MainMenu():
             key = Callback(SeedSeasons, url=show_url, title=title),
             title = title, thumb = Resource.ContentsOfURLWithFallback(thumb)
         ))
+    # Since this channel contains mostly old shows that will not change, 
+    # we offer the option of reversing the episode order for continuous play
+    # PREFS DO NOT WORK CURRENTLY IN LATEST APPS
+    #oc.add(PrefsObject(title="Preferences", summary="Set Episode Order"))
+    oc.add(DirectoryObject(key = Callback(EpOrder), title = "REVERSE THE ORDER OF EPISODES"))
 
     return oc
 ####################################################################################################
@@ -58,6 +70,9 @@ def SeedSeasons(url, title):
 @route('/video/thecwseed/seedjson', season=int)
 def SeedJSON(url, title, season, show_title):
 
+    pref_json = Dict["PrefData"]
+    ep_order = pref_json['EpOrder']['value']
+    ep_order = bool(ep_order)
     oc = ObjectContainer(title2=title)
     content = HTTP.Request(url).content
     html = HTML.ElementFromString(content)
@@ -110,10 +125,36 @@ def SeedJSON(url, title, season, show_title):
         ))
         
     # For some reason the json is being sorted out of order so we have to sort it here
-    oc.objects.sort(key = lambda obj: obj.index, reverse=True)
+    # Prefs do not work currently in latest apps 
+    #oc.objects.sort(key = lambda obj: obj.index, reverse=Prefs["order"])
+    oc.objects.sort(key = lambda obj: obj.index, reverse=ep_order)
         
     if len(oc) < 1:
         Log ('still no value for objects')
         return ObjectContainer(header="Empty", message="There are no videos to list.")
     else:
         return oc
+############################################################################################################################
+# This is a function to edit the EpOrder in the json data file
+@route('/video/thecwseed/eporder')
+def EpOrder():
+
+    pref_json = Dict["PrefData"]
+    ep_order = pref_json['EpOrder']['value']
+    if ep_order == True:
+        pref_json['EpOrder']['value'] = False
+        pref_json['EpOrder']['label'] = 'ascending'
+    else:
+        pref_json['EpOrder']['value'] = True
+        pref_json['EpOrder']['label'] = 'descending'
+    order_val = pref_json['EpOrder']['label']
+    return ObjectContainer(header=L('Changed'), message=L('Your episodes will now be displayed in %s order' %order_val)) 
+    
+############################################################################################################################
+# This function loads the json data file
+@route('/video/thecwseed/loaddata')
+def LoadData():
+
+    json_data = Resource.Load(PREF_DATA)
+    return JSON.ObjectFromString(json_data)
+    
