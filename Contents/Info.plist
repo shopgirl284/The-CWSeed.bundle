@@ -12,11 +12,5 @@
 	<array>
 		<string>US</string>
 	</array>
-	<key>PlexFrameworkFlags</key>
-	<array>
-		<string>UseRealRTMP</string>
-	</array>
-	<key>PlexMinimumServerVersion</key>
-	<string>0.9.6.3</string>
 </dict>
 </plist>
