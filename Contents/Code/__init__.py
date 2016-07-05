@@ -1,19 +1,12 @@
 CW_SEED = 'http://www.cwseed.com'
 CW_ROOT = 'http://www.cwtv.com'
 ICON     = 'icon-default.jpg'
-PREF_DATA = 'data.json'
 RE_JSON = Regex('CWSEED.Site.video_data.videos = (.+)}};', Regex.DOTALL)
 ####################################################################################################
 def Start():
 
     ObjectContainer.title1 = 'The CW Seed'
     DirectoryObject.thumb = R(ICON)
-    
-    # This pulls in the json data for the episode order
-    if Dict['PrefData'] == None:
-        Dict['PrefData'] = LoadData()
-    else:
-        Log(Dict['PrefData'])
 
 ####################################################################################################
 @handler('/video/thecwseed', 'The CW Seed')
@@ -21,32 +14,39 @@ def MainMenu():
     
     oc = ObjectContainer()
     
-    html = HTML.ElementFromURL(CW_SEED)
-    for item in html.xpath('//div[@id="currentshows"]//a'):
-        title = item.xpath('./p/text()')[0]
-        show_url = CW_SEED + item.get('href')
-        # seed show listings have a blank image for src so we try data-origsrc first
-        try: thumb = item.xpath('.//img/@data-origsrc')[0]
-        except: thumb = item.xpath('.//img/@src')[0]
+    html = HTML.ElementFromURL(CW_SEED+'/shows/')
+    # There is something odd in the shows code that is blocking the ability to access the section that contains images
+    # If we use item_list = html.xpath('//li[@class="showitem"]/a') it returns 58 items 
+    # for both the mobile and image sections but cannot find titles or images for second group
+    # If we use item_list = html.xpath('//div[@id="show-hub"]//li[@class="showitem"]/a') it just fails
+    # because it can not find the title or image
+    item_list = html.xpath('//li[contains(@class,"showlistgroups")]//li[@class="showitem"]/a')
+    #Log('the length of item_list is %s' %len(item_list)) 
+    for item in item_list:
+        show_url = CW_SEED + item.xpath('./@href')[0]
+        title = item.xpath('.//text()')[0]
+        #thumb = item.xpath('.//img/@data-src')[0]
 
         oc.add(DirectoryObject(
             key = Callback(SeedSeasons, url=show_url, title=title),
-            title = title, thumb = Resource.ContentsOfURLWithFallback(thumb)
+            title = title
         ))
     # Since this channel contains mostly old shows that will not change, 
-    # we offer the option of reversing the episode order for continuous play
-    # PREFS DO NOT WORK CURRENTLY IN LATEST APPS
-    #oc.add(PrefsObject(title="Preferences", summary="Set Episode Order"))
-    oc.add(DirectoryObject(key = Callback(EpOrder), title = "REVERSE THE ORDER OF EPISODES"))
-
-    return oc
+    # we offer the option of reversing the episode order for continuous play from Preferences
+    oc.add(PrefsObject(title="Preferences", summary="Set Episode Order"))
+    if len(oc) < 2:
+        return ObjectContainer(header='Empty', message='There are currently no seasons for this show')
+    else:
+        return oc
 ####################################################################################################
-# Return seasons if listed by seasons or 
+# Return seasons if listed by seasons or all videos 
 @route('/video/thecwseed/seedseasons')
-def SeedSeasons(url, title):
+def SeedSeasons(url, title, thumb=''):
 
     oc = ObjectContainer(title2=title)
     html = HTML.ElementFromURL(url)
+    if not thumb:
+        thumb = html.xpath('//meta[@id="ogimage"]/@content')[0]
     multi_seasons = html.xpath('//div[contains(@id, "seasons-menu2")]/ul/li/a')
 
     if multi_seasons:
@@ -56,7 +56,8 @@ def SeedSeasons(url, title):
             season = int(url.split('?season=')[1].strip())
             oc.add(DirectoryObject(
                 key = Callback(SeedJSON, url=url, title=seas_title, show_title=title, season=season),
-                title = seas_title
+                title = seas_title,
+                thumb = Resource.ContentsOfURLWithFallback(url=thumb)
             ))
     else:
         oc.add(DirectoryObject(key = Callback(SeedJSON, url=url, title="All Videos", show_title=title, season=0), title = "All Videos"))
@@ -126,35 +127,11 @@ def SeedJSON(url, title, season, show_title):
         
     # For some reason the json is being sorted out of order so we have to sort it here
     # Prefs do not work currently in latest apps 
-    #oc.objects.sort(key = lambda obj: obj.index, reverse=Prefs["order"])
-    oc.objects.sort(key = lambda obj: obj.index, reverse=ep_order)
+    oc.objects.sort(key = lambda obj: obj.index, reverse=Prefs["order"])
         
     if len(oc) < 1:
         Log ('still no value for objects')
         return ObjectContainer(header="Empty", message="There are no videos to list.")
     else:
         return oc
-############################################################################################################################
-# This is a function to edit the EpOrder in the json data file
-@route('/video/thecwseed/eporder')
-def EpOrder():
-
-    pref_json = Dict["PrefData"]
-    ep_order = pref_json['EpOrder']['value']
-    if ep_order == True:
-        pref_json['EpOrder']['value'] = False
-        pref_json['EpOrder']['label'] = 'ascending'
-    else:
-        pref_json['EpOrder']['value'] = True
-        pref_json['EpOrder']['label'] = 'descending'
-    order_val = pref_json['EpOrder']['label']
-    return ObjectContainer(header=L('Changed'), message=L('Your episodes will now be displayed in %s order' %order_val)) 
-    
-############################################################################################################################
-# This function loads the json data file
-@route('/video/thecwseed/loaddata')
-def LoadData():
-
-    json_data = Resource.Load(PREF_DATA)
-    return JSON.ObjectFromString(json_data)
     
