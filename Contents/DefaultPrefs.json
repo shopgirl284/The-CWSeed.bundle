@@ -1,0 +1,8 @@
+[
+    {
+        "id":"sort_order",
+        "label":"Sort videos in descending order",
+        "type":"bool",
+        "default":"True"
+    }
+]

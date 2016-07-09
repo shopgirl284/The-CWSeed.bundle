@@ -1,9 +1,0 @@
-{
-    "EpOrder": {
-        "id": "order",
-        "label": "descending",
-        "type": "bool",
-        "default": "True",
-        "value": "True"
-    }
-}
