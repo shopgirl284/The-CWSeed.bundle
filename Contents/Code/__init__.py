@@ -71,9 +71,6 @@ def SeedSeasons(url, title, thumb=''):
 @route('/video/thecwseed/seedjson', season=int)
 def SeedJSON(url, title, season, show_title):
 
-    pref_json = Dict["PrefData"]
-    ep_order = pref_json['EpOrder']['value']
-    ep_order = bool(ep_order)
     oc = ObjectContainer(title2=title)
     content = HTTP.Request(url).content
     html = HTML.ElementFromString(content)
@@ -127,7 +124,7 @@ def SeedJSON(url, title, season, show_title):
         
     # For some reason the json is being sorted out of order so we have to sort it here
     # Prefs do not work currently in latest apps 
-    sort_order=Prefs['sort_order']
+    sort_order=Prefs['sort_order'] if Prefs['sort_order'] in (True, False) else False
     oc.objects.sort(key = lambda obj: obj.index, reverse=sort_order)
         
     if len(oc) < 1:
