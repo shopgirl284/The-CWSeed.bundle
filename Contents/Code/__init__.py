@@ -124,7 +124,7 @@ def SeedJSON(url, title, season, show_title):
         
     # For some reason the json is being sorted out of order so we have to sort it here
     # Prefs do not work currently in latest apps 
-    sort_order=Prefs['sort_order'] if Prefs['sort_order'] in (True, False) else False
+    sort_order=Prefs['sort_order'] if Prefs['sort_order'] in (True, False) else True
     oc.objects.sort(key = lambda obj: obj.index, reverse=sort_order)
         
     if len(oc) < 1:
