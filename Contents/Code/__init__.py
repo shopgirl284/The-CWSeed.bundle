@@ -1,7 +1,7 @@
 CW_SEED = 'http://www.cwseed.com'
 CW_ROOT = 'http://www.cwtv.com'
 ICON     = 'icon-default.jpg'
-RE_JSON = Regex('CWSEED.Site.video_data.videos = (.+)}};', Regex.DOTALL)
+RE_JSON = Regex('CWSEED.Site.video_data.videos = (.+);\n')
 ####################################################################################################
 def Start():
 
@@ -75,7 +75,7 @@ def SeedJSON(url, title, season, show_title):
     content = HTTP.Request(url).content
     html = HTML.ElementFromString(content)
     try:
-        json_data = RE_JSON.search(content).group(1) + "}}"
+        json_data = RE_JSON.search(content).group(1)
         json = JSON.ObjectFromString(json_data)
     except:
         return ObjectContainer(header="Empty", message="No json data to pull videos")
@@ -98,17 +98,8 @@ def SeedJSON(url, title, season, show_title):
         else:
             season_num = 0
             episode = 0
-        # CLEAN OUT VIDEOS FOR OTHER SHOWS, CLIPS, OR OTHER SEASONS
         # Skip videos for other shows
-        show_url = url.split('/shows/')[1].split('?')[0]
-        if show_url not in video_url:
-            continue
-        # Skip videos for other seasons
-        if season > 0:
-            if season!=season_num:
-                continue
-        # Skip video clips (Some shows are only 3 minutes long)
-        if duration < 3:
+        if show != show_title:
             continue
 
         oc.add(EpisodeObject(
